@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+client/dist/
+build/
+
+# Environment variables & secrets (CRITICAL)
+.env
+.env.local
+.env.*.local
+*.env
+server/.env
+*.key
+*.pem
+*credentials*.json
+skill-swap*.json
+
+# Explicitly keep example environment templates
+!.env.example
+!server/.env.example
+
+# Logs & scratch
+logs/
+server/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+server/scratch/
+server/benchmark/results/raw_outputs/
+
+# Uploads & temporary files
+uploads/
+server/uploads/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
