@@ -124,29 +124,6 @@ cd SEOScribe
 ```bash
 cd server
 npm install
-
-# Create environment configuration
-cp .env.example .env
-```
-
-Configure your `.env` file:
-```env
-PORT=5000
-CLIENT_URL=http://localhost:5173
-
-# Required for AI agents and visual PDF analysis:
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Required for tabular document extraction:
-LLAMA_CLOUD_API_KEY=your_llama_cloud_api_key_here
-
-# Optional (for enhanced web scraping):
-FIRECRAWL_API_KEY=your_firecrawl_api_key_here
-SCRAPINGBEE_API_KEY=your_scrapingbee_api_key_here
-```
-
-Start the backend server:
-```bash
 npm start
 # Server runs on http://localhost:5000
 ```
@@ -159,57 +136,3 @@ npm install
 npm run dev
 # App runs on http://localhost:5173
 ```
-
----
-
-## 📡 API Endpoints
-
-### 1. Live Website Analysis
-```http
-POST /api/seo/analyze-url
-Content-Type: application/json
-
-{
-  "url": "https://example.com"
-}
-```
-
-### 2. PDF Document Upload & Analysis
-```http
-POST /api/seo/upload-pdf
-Content-Type: multipart/form-data
-
-# Form field: "pdf" (Binary file buffer, max 30MB)
-```
-
-### 3. Crawl Page Intelligence
-```http
-POST /api/crawl/page-intelligence
-Content-Type: application/json
-
-{
-  "url": "https://example.com",
-  "forceBrowser": false,
-  "timeoutMs": 15000
-}
-```
-
-### 4. Health Check
-```http
-GET /api/seo/health
-```
-
----
-
-## 🔒 Security & Defensive Engineering
-
-- **No Secrets in Source:** `.gitignore` strictly protects `.env`, credential files, and local logs.
-- **Localhost & SSRF Protection:** Validates URLs to prevent SSRF against loopback addresses (`127.0.0.1`, `localhost`, `*.local`).
-- **File Validation:** Binary mime-type checks and a 30 MB size ceiling enforced via Multer.
-- **Graceful Degradation:** Automatic failovers at every layer (Firecrawl $\to$ ScrapingBee $\to$ Playwright; Gemini $\to$ LlamaParse).
-- **Confidence Gates:** If a site or document cannot be reliably parsed, SEOScribe halts and returns a clean, transparent `422` error rather than generating deceptive scores.
-
----
-
-## 📄 License
-This project is licensed under the [MIT License](LICENSE).

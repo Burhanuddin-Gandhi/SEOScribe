@@ -18,10 +18,6 @@ server/.env
 *credentials*.json
 skill-swap*.json
 
-# Explicitly keep example environment templates
-!.env.example
-!server/.env.example
-
 # Logs & scratch
 logs/
 server/logs/
