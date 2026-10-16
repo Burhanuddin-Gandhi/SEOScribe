@@ -7,7 +7,7 @@ const helmet = require('helmet');
  */
 const heavySeoLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'test' ? 1000 : 20, // 20 requests per 15 minutes per IP
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Generous limit for demos & development
   standardHeaders: true, // Return standard RateLimit headers
   legacyHeaders: false,
   message: {

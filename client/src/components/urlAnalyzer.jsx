@@ -1,11 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import api from '../api';
 import AnalysisLoader from './AnalysisLoader';
-import SubscriptionModal from './SubscriptionModal';
 
 const URL_PRESETS = ['example.com', 'mybrand.io', 'acmecorp.dev'];
-
-const INITIAL_TRIALS = 3;
 
 function normalizeUrl(input) {
   let trimmed = (input || '').trim();
@@ -57,15 +54,6 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
   const [touched, setTouched] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
-  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-  const [isProUser, setIsProUser] = useState(() => {
-    return localStorage.getItem('seoscribe_is_pro') === 'true';
-  });
-
-  const [trialsRemaining, setTrialsRemaining] = useState(() => {
-    const saved = localStorage.getItem('seoscribe_url_trials');
-    return saved !== null ? parseInt(saved, 10) : INITIAL_TRIALS;
-  });
 
   // Smoothly increment progress and step messages while analyzing
   useEffect(() => {
@@ -105,12 +93,6 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
     setTouched(true);
   }, []);
 
-  const handleUpgradeSuccess = useCallback(() => {
-    setIsProUser(true);
-    localStorage.setItem('seoscribe_is_pro', 'true');
-    setTrialsRemaining(999);
-  }, []);
-
   const handleAnalyze = useCallback(async () => {
     setTouched(true);
     const trimmed = url.trim();
@@ -122,12 +104,6 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
 
     if (!isValidUrl(trimmed)) {
       setError('Enter a valid domain name (e.g. example.com or mybrand.io)');
-      return;
-    }
-
-    // Check trials if not pro
-    if (!isProUser && trialsRemaining <= 0) {
-      setIsSubModalOpen(true);
       return;
     }
 
@@ -153,15 +129,6 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
       }
 
       setProgress(100);
-
-      // Decrement trial count for free tier
-      if (!isProUser) {
-        setTrialsRemaining((prev) => {
-          const next = Math.max(0, prev - 1);
-          localStorage.setItem('seoscribe_url_trials', String(next));
-          return next;
-        });
-      }
 
       const normalized = {
         sourceType: 'url',
@@ -193,7 +160,7 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [url, isProUser, trialsRemaining, onAnalysisComplete]);
+  }, [url, onAnalysisComplete]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !isAnalyzing) {
@@ -211,11 +178,7 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
           <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
-          {isProUser ? (
-            <span className="text-emerald-400">SEOScribe Pro &bull; Unlimited Audits</span>
-          ) : (
-            <span>Free Trial: <strong className="text-white">{trialsRemaining} of {INITIAL_TRIALS}</strong> audits remaining</span>
-          )}
+          <span className="text-emerald-400">Live Web Page Audit &bull; Full Access</span>
         </div>
 
         <h2 className="text-3xl font-bold text-white tracking-tight">
@@ -351,13 +314,6 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
           </button>
         </div>
       )}
-
-      {/* Subscription Modal when trials are exhausted */}
-      <SubscriptionModal
-        isOpen={isSubModalOpen}
-        onClose={() => setIsSubModalOpen(false)}
-        onUpgradeSuccess={handleUpgradeSuccess}
-      />
     </div>
   );
 }
