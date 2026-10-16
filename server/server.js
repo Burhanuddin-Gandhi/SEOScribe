@@ -27,11 +27,12 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow non-browser requests, allowed origins, or Cloudflare Pages deployments (*.pages.dev)
+    // Allow non-browser requests, allowed origins, Cloudflare Pages (*.pages.dev), or Vercel (*.vercel.app)
     if (
       !origin ||
       allowedOrigins.includes(origin) ||
       origin.endsWith('.pages.dev') ||
+      origin.endsWith('.vercel.app') ||
       process.env.NODE_ENV !== 'production'
     ) {
       return callback(null, true);
