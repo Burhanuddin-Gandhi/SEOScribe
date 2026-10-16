@@ -12,6 +12,8 @@ build/
 .env.local
 .env.*.local
 *.env
+*.env.example
+.env.example
 server/.env
 *.key
 *.pem
