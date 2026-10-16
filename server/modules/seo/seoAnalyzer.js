@@ -129,17 +129,44 @@ function extractKeywords(bodyText, boostText = '', limit = 10) {
 /* Competitor mention detection (real domains and corporate entities) */
 /* ------------------------------------------------------------------ */
 
+const EXCLUDED_NON_COMPETITOR_DOMAINS = new Set([
+  'schema.org',
+  'w3.org',
+  'google.com',
+  'localhost',
+  'github.com',
+  'facebook.com',
+  'instagram.com',
+  'twitter.com',
+  'x.com',
+  'linkedin.com',
+  'youtube.com',
+  'tiktok.com',
+  'pinterest.com',
+  'reddit.com',
+  'apple.com',
+  'play.google.com',
+  'cloudflare.com',
+  'googletagmanager.com',
+  'wikipedia.org',
+  'whatsapp.com',
+  't.me',
+  'discord.com',
+  'discord.gg',
+  'medium.com',
+]);
+
 function extractCompetitorMentions(rawText, ownBrandText = '', limit = 5) {
   if (!rawText) return [];
 
   const ownBrandWords = new Set(tokenize(ownBrandText));
   const freq = new Map();
 
-  // 1. Detect external domain names (e.g. competitor.com, ahrefs.com, semrush.com)
+  // 1. Detect external domain names (excluding social networks & infra)
   const domainMatches = rawText.match(/\b([a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.(?:com|org|net|io|co|ai|uk|gov|edu|de|app|tech|biz))\b/gi) || [];
   domainMatches.forEach((domain) => {
     const d = domain.toLowerCase();
-    if (!ownBrandWords.has(d.split('.')[0]) && !['schema.org', 'w3.org', 'google.com', 'localhost', 'github.com'].includes(d)) {
+    if (!ownBrandWords.has(d.split('.')[0]) && !EXCLUDED_NON_COMPETITOR_DOMAINS.has(d)) {
       freq.set(d, (freq.get(d) || 0) + 1);
     }
   });
