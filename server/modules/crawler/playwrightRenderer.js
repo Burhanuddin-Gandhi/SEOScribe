@@ -33,20 +33,28 @@ function getBrowser() {
  * @param {number} timeoutMs
  * @returns {Promise<{ html: string, finalUrl: string }>}
  */
-async function renderWithPlaywright(url, timeoutMs = 20000) {
+async function renderWithPlaywright(url, timeoutMs = 12000) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    locale: 'en-US',
   });
 
   try {
     const page = await context.newPage();
 
+    // Use domcontentloaded so tracking beacons, websockets, and ads do not block page capture
     await page.goto(url, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: timeoutMs,
     });
+
+    // Allow brief time for client-side frameworks (React/Next/Vue) to hydrate DOM without hanging
+    await Promise.race([
+      page.waitForLoadState('load'),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
 
     const html = await page.content();
     const finalUrl = page.url();

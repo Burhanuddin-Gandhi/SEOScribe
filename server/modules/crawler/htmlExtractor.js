@@ -72,17 +72,26 @@ function extractSignals(html, finalUrl) {
     }
   });
 
-  const bodyText = [title, description, ...headings, ...paragraphs]
+  // Clean visible text excluding scripts, styles, and SVGs
+  const bodyClone = $('body').clone();
+  bodyClone.find('script, style, noscript, svg, iframe').remove();
+  const cleanVisibleBody = bodyClone.text().replace(/\s+/g, ' ').trim();
+
+  let bodyText = [title, description, ...headings, ...paragraphs]
     .filter((t) => t && t.length > 0)
     .join('\n');
 
+  // If paragraphs were sparse (e.g. SPAs, login gates, modern div-based landing pages), incorporate clean visible text
+  if (bodyText.length < 300 && cleanVisibleBody.length > bodyText.length) {
+    bodyText = [title, description, ...headings, cleanVisibleBody.slice(0, 6000)]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
 
-  // Raw visible body text length, independent of our own tag selection —
-  // used by the suspicion heuristic to catch "technically has some text
-  // but it's all boilerplate" cases that word-counting our own extracted
-  // headings/paragraphs might miss.
-  const rawBodyText = $('body').text().replace(/\s+/g, ' ').trim();
+  // Raw visible body text length, independent of our own tag selection
+  const rawBodyText = cleanVisibleBody;
 
   return {
     title: title || '',

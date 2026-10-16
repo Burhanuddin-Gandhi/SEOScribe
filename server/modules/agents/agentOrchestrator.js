@@ -23,17 +23,23 @@ async function orchestrateUrlRemediation({
   // 1. Auditor Agent scans what exists vs. what is missing
   const audit = auditExistingSite(signals, url, content);
 
-  // 2. Competitor Agent evaluates competitors via LLM reasoning (zero extra scraping credits)
-  const compIntel = await analyzeCompetitors(competitors, keywords);
-
-  // 3. Copywriter Agent generates ONLY what was flagged as missing or broken
-  const surgicalFixes = await generateSurgicalFixes({
-    missing: audit.missing,
-    existingSignals: signals,
-    url,
-    keywords,
-    content,
-  });
+  // 2, 3, 6. Run Competitor, Copywriter, and Growth agents concurrently in parallel
+  const [compIntel, surgicalFixes, strategicGrowth] = await Promise.all([
+    analyzeCompetitors(competitors, keywords),
+    generateSurgicalFixes({
+      missing: audit.missing,
+      existingSignals: signals,
+      url,
+      keywords,
+      content,
+    }),
+    generateStrategicGrowthSuite({
+      targetName: url,
+      content,
+      keywords,
+      competitors,
+    }),
+  ]);
 
   // 4. Technical Agent generates Schema if missing
   const needsSchema = audit.missing.some((m) => m.element === 'schema');
@@ -66,14 +72,6 @@ async function orchestrateUrlRemediation({
   if (surgicalFixes.schema) snippetParts.push(surgicalFixes.schema.codeSnippet);
   const targetedHtmlSnippet = snippetParts.length > 1 ? snippetParts.join('\n') : null;
 
-  // 6. Growth Agent generates AI Search (GEO) fixes, Blog clusters, Backlinks & FAQs
-  const strategicGrowth = await generateStrategicGrowthSuite({
-    targetName: url,
-    content,
-    keywords,
-    competitors,
-  });
-
   return {
     mode: 'surgical_remediation',
     url,
@@ -101,15 +99,21 @@ async function orchestratePdfCreation({
 }) {
   console.log(`[Agent Orchestrator] Running Full 0-to-1 SEO Creation for: ${targetName}`);
 
-  // 1. Competitor Agent extracts competitor insights
-  const compIntel = await analyzeCompetitors(competitors, keywords);
-
-  // 2. Copywriter Agent generates full suite of options from scratch
-  const copywritingSuite = await generateFullSEOPackage({
-    targetName,
-    keywords,
-    content,
-  });
+  // 1, 2, 5. Run Competitor, Copywriting, and Growth suites in parallel
+  const [compIntel, copywritingSuite, strategicGrowth] = await Promise.all([
+    analyzeCompetitors(competitors, keywords),
+    generateFullSEOPackage({
+      targetName,
+      keywords,
+      content,
+    }),
+    generateStrategicGrowthSuite({
+      targetName,
+      content,
+      keywords,
+      competitors,
+    }),
+  ]);
 
   // 3. Technical Agent generates full Article/Report JSON-LD Schema
   const schemaResult = generateSchema({
@@ -140,14 +144,6 @@ async function orchestratePdfCreation({
 
 <!-- Structured Data (JSON-LD) -->
 ${schemaResult.htmlSnippet}`;
-
-  // 5. Growth Agent generates AI Search (GEO) fixes, Blog clusters, Backlinks & FAQs
-  const strategicGrowth = await generateStrategicGrowthSuite({
-    targetName,
-    content,
-    keywords,
-    competitors,
-  });
 
   // 6. Content Publishing Roadmap & Gaps
   const publishingRoadmap = {

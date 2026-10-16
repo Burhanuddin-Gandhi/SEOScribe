@@ -118,7 +118,7 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
       const response = await api.post(
         '/api/seo/analyze-url',
         { url: normalizedTarget },
-        { timeout: 35000 }
+        { timeout: 90000 }
       );
 
       const payload = response.data;

@@ -59,7 +59,7 @@ router.post('/analyze-url', heavySeoLimiter, verifyClientHeader, async (req, res
     if (process.env.FIRECRAWL_API_KEY) {
       try {
         console.log(`[URL Analyzer] Initiating Tier 1 Firecrawl scrape for ${validatedUrl}...`);
-        const fcResult = await scrapeWithFirecrawl(validatedUrl, { timeoutMs: 25000 });
+        const fcResult = await scrapeWithFirecrawl(validatedUrl, { timeoutMs: 12000 });
 
         if (fcResult.success && fcResult.rawHtml && fcResult.rawHtml.length > 200) {
           finalHtml = fcResult.rawHtml;
@@ -107,7 +107,7 @@ router.post('/analyze-url', heavySeoLimiter, verifyClientHeader, async (req, res
         fallbackAttempted = true;
         const sbResult = await scrapeWithScrapingBee(validatedUrl, {
           renderJs: true,
-          timeoutMs: 25000,
+          timeoutMs: 15000,
         });
 
         if (sbResult.success && sbResult.rawHtml && sbResult.rawHtml.length > 200) {
@@ -180,9 +180,14 @@ router.post('/analyze-url', heavySeoLimiter, verifyClientHeader, async (req, res
       }
     }
 
-    // --- Confidence gate ---
+    // --- Confidence gate & Login Wall Detection ---
     const finalSuspicion = looksSuspicious(finalExtraction, finalHtml);
     const stillTooThin = finalExtraction.content.length < MIN_CONTENT_CHARS;
+
+    const isLoginWall =
+      /(\/login|\/signin|\/log-in|\/sign-in)/i.test(finalUrl) ||
+      /\b(log in|sign in|create an account|login to continue|log in to facebook)\b/i.test(finalExtraction.title || '') ||
+      (finalExtraction.signals.wordCount < 100 && /\b(login|password|sign in|forgot password|email address or mobile)\b/i.test(finalExtraction.content || ''));
 
     if (stillTooThin && renderMethod !== 'firecrawl-cloud' && renderMethod !== 'scrapingbee-stealth') {
       confidence = 'low';
@@ -201,12 +206,13 @@ router.post('/analyze-url', heavySeoLimiter, verifyClientHeader, async (req, res
       finalSuspicionReasons: finalSuspicion.reasons,
     });
 
-    if (confidence === 'low' && stillTooThin) {
+    if ((confidence === 'low' && stillTooThin) || finalExtraction.content.length < 50) {
       return res.status(422).json({
         success: false,
-        error:
-          "We couldn't reliably analyze this page — it may be blocking automated access, require a login, or rely on content we couldn't load. Try again, or double-check the URL.",
-        code: 'UNRELIABLE_EXTRACTION',
+        error: isLoginWall
+          ? "This website requires a user login or active authentication session (e.g. Facebook Login). SEOScribe cannot access login-gated or private pages. Please enter a public website, blog post, or product landing page."
+          : "We couldn't reliably analyze this page — it may be blocking automated access, require a login, or rely on content we couldn't load. Try again with a public article or landing page.",
+        code: isLoginWall ? 'LOGIN_WALL_DETECTED' : 'UNRELIABLE_EXTRACTION',
       });
     }
 
@@ -298,6 +304,20 @@ function handleFetchError(res, error) {
       success: false,
       error: 'Website took too long to respond. Please try again later.',
       code: 'TIMEOUT',
+    });
+  }
+  if (error.response?.status === 400 || error.message.includes('status code 400')) {
+    return res.status(400).json({
+      success: false,
+      error: 'This website blocked non-browser requests (HTTP 400). It may require a full user session or CAPTCHA verification.',
+      code: 'ACCESS_REJECTED',
+    });
+  }
+  if (error.response?.status === 403 || error.message.includes('status code 403') || error.response?.status === 401 || error.message.includes('status code 401')) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied: This website blocks automated crawlers or requires login authentication (HTTP 401/403).',
+      code: 'AUTH_REQUIRED',
     });
   }
   return res.status(error.status || 500).json({
