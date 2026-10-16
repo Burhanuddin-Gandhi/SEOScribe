@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import AnalysisLoader from './AnalysisLoader';
 import SubscriptionModal from './SubscriptionModal';
 
@@ -139,10 +139,10 @@ export default function URLAnalyzer({ onAnalysisComplete }) {
     setStepIndex(0);
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         '/api/seo/analyze-url',
         { url: normalizedTarget },
-        { timeout: 30000 }
+        { timeout: 35000 }
       );
 
       const payload = response.data;

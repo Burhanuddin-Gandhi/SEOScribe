@@ -6,8 +6,9 @@ const { analyzeSEOContent } = require('../modules/seo/seoAnalyzer');
 const { logExtraction, hashContent } = require('../modules/seo/auditLog');
 const { checkAndRecordConsistency } = require('../modules/seo/analysisHistory');
 const { orchestratePdfCreation } = require('../modules/agents/agentOrchestrator');
+const { heavySeoLimiter, verifyClientHeader, validatePdfMagicBytes } = require('../middleware/security');
 
-router.post('/upload-pdf', (req, res, next) => {
+router.post('/upload-pdf', heavySeoLimiter, verifyClientHeader, (req, res, next) => {
   // Handle multer upload with custom error handling
   upload.single('pdf')(req, res, async (err) => {
     if (err) {
@@ -30,6 +31,15 @@ router.post('/upload-pdf', (req, res, next) => {
 
     try {
       const { originalname, buffer, size } = req.file;
+
+      // Validate PDF magic bytes header to prevent malicious files
+      if (!validatePdfMagicBytes(buffer)) {
+        return res.status(400).json({
+          success: false,
+          error: 'The uploaded file is not a valid PDF document (missing %PDF- header).',
+          code: 'INVALID_PDF_HEADER',
+        });
+      }
 
       console.log(
         `[Upload] Received "${originalname}" ` +

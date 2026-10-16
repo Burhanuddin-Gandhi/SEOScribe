@@ -9,6 +9,7 @@ const { scrapeWithScrapingBee } = require('../modules/crawler/engine/gatewayFetc
 const { logExtraction, hashContent } = require('../modules/seo/auditLog');
 const { checkAndRecordConsistency } = require('../modules/seo/analysisHistory');
 const { orchestrateUrlRemediation } = require('../modules/agents/agentOrchestrator');
+const { heavySeoLimiter, verifyClientHeader, isSafePublicUrl } = require('../middleware/security');
 
 const MIN_CONTENT_CHARS = 300;
 
@@ -20,7 +21,7 @@ const MIN_CONTENT_CHARS = 300;
  *   2. Secondary: ScrapingBee Stealth Gateway (Residential proxies & tough anti-bot bypass).
  *   3. Tertiary: Fast static fetch + conditional Playwright headless browser.
  */
-router.post('/analyze-url', async (req, res) => {
+router.post('/analyze-url', heavySeoLimiter, verifyClientHeader, async (req, res) => {
   const { url } = req.body;
 
   if (!url) {
@@ -31,7 +32,7 @@ router.post('/analyze-url', async (req, res) => {
     });
   }
 
-  const urlValidation = validateURL(url);
+  const urlValidation = isSafePublicUrl(url);
   if (!urlValidation.valid) {
     return res.status(400).json({
       success: false,
@@ -304,37 +305,6 @@ function handleFetchError(res, error) {
     error: error.message || 'Error fetching website',
     code: error.code || 'FETCH_ERROR',
   });
-}
-
-function validateURL(urlString) {
-  if (!urlString || typeof urlString !== 'string') {
-    return { valid: false, error: 'URL must be a non-empty string' };
-  }
-
-  let url = urlString;
-  if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
-    url = `https://${urlString}`;
-  }
-
-  try {
-    const parsed = new URL(url);
-    if (
-      parsed.hostname === 'localhost' ||
-      parsed.hostname === '127.0.0.1' ||
-      parsed.hostname.endsWith('.local')
-    ) {
-      return {
-        valid: false,
-        error: 'Cannot analyze local development servers or local networks.',
-      };
-    }
-    return { valid: true, url };
-  } catch {
-    return {
-      valid: false,
-      error: 'Invalid URL format. Example: example.com or https://example.com',
-    };
-  }
 }
 
 async function fetchStaticHTML(url) {

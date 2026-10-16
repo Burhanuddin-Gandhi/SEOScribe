@@ -5,17 +5,48 @@ const pdfRoutes = require('./routes/pdfRoutes');
 const urlRoutes = require('./routes/urlRoutes');
 const crawlRoutes = require('./routes/crawlRoutes');
 
+const { helmetConfig, generalApiLimiter } = require('./middleware/security');
+
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Trust reverse proxies (Cloudflare, Render, Railway, Vercel) for accurate client IP in rate limiting
+app.set('trust proxy', 1);
+
+// Security Headers
+app.use(helmetConfig);
+
+// CORS configuration (supports local development and deployed frontend)
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser requests, allowed origins, or Cloudflare Pages deployments (*.pages.dev)
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.pages.dev') ||
+      process.env.NODE_ENV !== 'production'
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error('Blocked by CORS policy'));
+  },
   credentials: true,
 }));
-app.use(express.json());
+
+// Payload size limit to prevent memory exhaustion DoS
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Global general rate limit
+app.use('/api/', generalApiLimiter);
 
 // Routes
 app.use('/api/seo', pdfRoutes);

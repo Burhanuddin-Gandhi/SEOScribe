@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import AnalysisLoader from './AnalysisLoader';
 
 const MAX_FILE_SIZE_MB = 30;
@@ -137,7 +137,7 @@ export default function PDFUploader({ onAnalysisComplete }) {
 
     try {
       // 3-minute timeout for large documents (e.g. 40+ pages)
-      const response = await axios.post('/api/seo/upload-pdf', formData, {
+      const response = await api.post('/api/seo/upload-pdf', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 180000,
       });
