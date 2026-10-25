@@ -3,6 +3,40 @@ const path = require('path');
 const crypto = require('crypto');
 const { GoogleGenAI } = require('@google/genai');
 const { LlamaParse } = require('llama-parse');
+const { PDFDocument } = require('pdf-lib');
+
+/**
+ * For high-volume visual / scanned PDFs (> 15 pages), extracts the primary executive pages
+ * (first 12 pages + final 2 summary pages) so that multimodal vision OCR runs within 30-40 seconds,
+ * avoiding reverse-proxy gateway timeouts on free cloud tiers.
+ */
+async function extractKeyVisualPages(pdfBuffer, maxPages = 15) {
+  try {
+    const srcDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+    const total = srcDoc.getPageCount();
+    if (total <= maxPages) {
+      return { buffer: pdfBuffer, sampled: false, totalPages: total, processedPages: total };
+    }
+    const dstDoc = await PDFDocument.create();
+    const indices = [];
+    for (let i = 0; i < Math.min(12, total); i++) indices.push(i);
+    for (let i = Math.max(12, total - 2); i < total; i++) {
+      if (!indices.includes(i)) indices.push(i);
+    }
+    const copiedPages = await dstDoc.copyPages(srcDoc, indices);
+    copiedPages.forEach((p) => dstDoc.addPage(p));
+    const subPdfBytes = await dstDoc.save();
+    return {
+      buffer: Buffer.from(subPdfBytes),
+      sampled: true,
+      totalPages: total,
+      processedPages: indices.length,
+    };
+  } catch (err) {
+    console.warn(`[ParserRouter] Visual page sampling failed, using original buffer: ${err.message}`);
+    return { buffer: pdfBuffer, sampled: false, totalPages: 0, processedPages: 0 };
+  }
+}
 
 /**
  * Wraps an async promise with a strict timeout to prevent indefinite server hangs
@@ -513,30 +547,45 @@ async function parseWithGemini(pdfBuffer, filename, classification) {
     throw error;
   }
 
+  // If visual document has > 15 pages, sample key executive pages for fast vision processing
+  let targetBuffer = pdfBuffer;
+  let samplingMeta = { sampled: false };
+  if (classification.totalPages > 15) {
+    samplingMeta = await extractKeyVisualPages(pdfBuffer, 15);
+    targetBuffer = samplingMeta.buffer;
+    console.log(
+      `[ParserRouter] Visual document "${filename}" has ${classification.totalPages} pages. ` +
+      `Optimized to ${samplingMeta.processedPages} key pages (${(targetBuffer.length / 1024 / 1024).toFixed(2)} MB) for fast OCR.`
+    );
+  }
+
   const ai = new GoogleGenAI({ apiKey });
-  const base64Data = pdfBuffer.toString('base64');
+  const base64Data = targetBuffer.toString('base64');
 
-  const prompt = `You are a high-precision document transcription and visual structure extraction system.
-Analyze this document thoroughly:
+  const prompt = `You are an expert SEO document analyzer and high-speed structural extractor.
+Analyze this scanned/visual document and produce a structured, content-rich summary for SEO evaluation:
 
-1. TEXT EXTRACTION:
-- Extract all literal readable text faithfully into clean, semantic Markdown.
-- Preserve document hierarchy with appropriate headings (# H1, ## H2, ### H3).
-- Format all tabular data into Markdown tables (| Column 1 | Column 2 |).
-- Use bullet lists (- item) where appropriate.
+1. DOCUMENT STRUCTURE & HEADINGS:
+- Extract the main title, subtitle, and all primary section headings (# H1, ## H2, ### H3).
 
-2. VISUAL ELEMENTS EXTRACTION:
-- Describe any visual diagrams, charts, infographics, logos, illustrations, or complex slide layouts.
-- Prefix every visual element description with:
-  [AI-VISUAL-INTERPRETATION] (Type: chart|diagram|graphic|layout|image): <Description of visual element and its context>
+2. KEY CONTENT & EXECUTIVE SUMMARY:
+- Synthesize the core concepts, topics, methodology, and key paragraphs into clean Markdown.
+- Preserve all significant domain-specific terminology, keywords, entities, and data points.
 
-Ensure visual interpretations are explicitly distinguished from verbatim transcribed text.`;
+3. DATA TABLES & METRICS:
+- Extract and format any tables or key metrics into Markdown tables (| Column 1 | Column 2 |).
+
+4. VISUAL ELEMENTS:
+- Note any diagrams, charts, or visual figures:
+  [AI-VISUAL-INTERPRETATION] (Type: chart|diagram|table|figure): <Brief description of figure>
+
+Be comprehensive yet concise. Do NOT generate unnecessary filler words.`;
 
   console.log(`[ParserRouter] Executing Gemini 2.5 Flash for VISUAL document: "${filename}" (${classification.totalPages} pages)...`);
 
   let response = null;
   try {
-    // Strict 15-second timeout to prevent indefinite server hangs on heavy Google AI Studio traffic
+    // 65-second timeout allowing thorough vision analysis well within cloud gateway limits
     response = await withTimeout(
       ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -552,8 +601,8 @@ Ensure visual interpretations are explicitly distinguished from verbatim transcr
           },
         ],
       }),
-      15000,
-      'Gemini 2.5 Flash request timed out (15s limit reached).'
+      65000,
+      'Gemini 2.5 Flash request timed out (65s limit reached).'
     );
   } catch (err) {
     console.warn(`[ParserRouter] Gemini 2.5 Flash failed or busy (${err.message}).`);
@@ -574,7 +623,9 @@ Ensure visual interpretations are explicitly distinguished from verbatim transcr
   // because visual interpretation is inherently inferential.
   const confidence = plainTextSummary.length > 30 ? 'medium' : 'low';
   const confidenceReasons = [
-    'Visual document: text transcribed and visual elements described via Gemini 2.5 Flash.',
+    samplingMeta.sampled
+      ? `Visual document: processed key ${samplingMeta.processedPages} of ${samplingMeta.totalPages} pages via Gemini 2.5 Flash vision OCR.`
+      : 'Visual document: text transcribed and visual elements described via Gemini 2.5 Flash.',
   ];
   if (plainTextSummary.length <= 30) {
     confidenceReasons.push('Sparse text extracted from visual document.');
