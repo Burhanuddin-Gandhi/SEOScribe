@@ -15,38 +15,24 @@ const PORT = process.env.PORT || 5000;
 // Trust reverse proxies (Cloudflare, Render, Railway, Vercel) for accurate client IP in rate limiting
 app.set('trust proxy', 1);
 
+// Universal CORS middleware ensuring every response (including preflights and errors) has CORS headers
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-seoscribe-client-token, x-admin-bypass-key');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Security Headers
 app.use(helmetConfig);
-
-// CORS configuration (supports local development and deployed frontend)
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-].filter(Boolean);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow non-browser requests, allowed origins, Cloudflare Pages (*.pages.dev), or Vercel (*.vercel.app)
-    if (
-      !origin ||
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.pages.dev') ||
-      origin.endsWith('.vercel.app') ||
-      process.env.NODE_ENV !== 'production'
-    ) {
-      return callback(null, true);
-    }
-    return callback(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-seoscribe-client-token', 'x-admin-bypass-key'],
-  maxAge: 86400, // Cache preflight response for 24 hours
-  optionsSuccessStatus: 204,
-};
-
-app.use(cors(corsOptions));
 
 // Payload size limit to prevent memory exhaustion DoS
 app.use(express.json({ limit: '1mb' }));

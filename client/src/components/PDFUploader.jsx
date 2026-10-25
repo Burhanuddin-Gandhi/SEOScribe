@@ -138,7 +138,6 @@ export default function PDFUploader({ onAnalysisComplete }) {
     try {
       // 3-minute timeout for large documents (e.g. 40+ pages)
       const response = await api.post('/api/seo/upload-pdf', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 180000,
       });
 
