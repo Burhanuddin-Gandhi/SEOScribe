@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import api from './api'
 
 import SEOAnalyzerTab from './components/SEOAnalyzerTab'
 import SiteHeader from './components/SiteHeader'
@@ -8,6 +9,13 @@ import MethodologyPage from './components/MethodologyPage'
 
 function App() {
   const [resetKey, setResetKey] = useState(0);
+
+  // Warm up backend on initial load (prevents Render free-tier cold-start timeouts)
+  useEffect(() => {
+    api.get('/api/seo/health').catch(() => {
+      // Ignore initial background ping error if waking up
+    });
+  }, []);
 
   const handleReset = useCallback(() => {
     setResetKey((prev) => prev + 1);

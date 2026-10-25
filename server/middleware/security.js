@@ -30,6 +30,7 @@ const generalApiLimiter = rateLimit({
   max: 100, // 100 requests per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
   message: {
     success: false,
     error: 'Too many requests. Please try again later.',

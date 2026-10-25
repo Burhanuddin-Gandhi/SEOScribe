@@ -25,7 +25,7 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean);
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
     // Allow non-browser requests, allowed origins, Cloudflare Pages (*.pages.dev), or Vercel (*.vercel.app)
     if (
@@ -37,10 +37,16 @@ app.use(cors({
     ) {
       return callback(null, true);
     }
-    callback(new Error('Blocked by CORS policy'));
+    return callback(null, false);
   },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-seoscribe-client-token', 'x-admin-bypass-key'],
+  maxAge: 86400, // Cache preflight response for 24 hours
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 
 // Payload size limit to prevent memory exhaustion DoS
 app.use(express.json({ limit: '1mb' }));
